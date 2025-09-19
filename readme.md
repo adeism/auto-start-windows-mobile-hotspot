@@ -91,9 +91,6 @@ Tugas ini akan menjalankan skrip secara otomatis.
 
 Setelah instalasi selesai, Anda tidak perlu melakukan apa-apa lagi. Cukup restart komputer Anda, dan Mobile Hotspot akan menyala secara otomatis setelah Anda login.
 
-## 🔧 Troubleshooting
-
--   **Hotspot tidak menyala?** Pastikan path file skrip di Task Scheduler (Tab Actions) sudah benar.
 -   **Akses Ditolak?** Pastikan Anda mencentang "Run with highest privileges" saat membuat tugas.
 
 ## 📜 Lisensi
