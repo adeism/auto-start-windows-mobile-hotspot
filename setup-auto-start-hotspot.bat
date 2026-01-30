@@ -65,44 +65,46 @@ REM Bagian 3: Membuat PowerShell Script dengan Logging
 REM =================================================================
 echo.
 echo Membuat file skrip PowerShell dengan logging di "%psScriptPath%"...
-(
-    echo # Auto Hotspot Script v1.1 with Logging
-    echo $logFile = "%logPath%"
-    echo $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    echo.
-    echo # Ensure we have admin rights
-    echo if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent(^)^).IsInRole([Security.Principal.WindowsBuiltInRole]"Administrator"^)^) {
-    echo     Add-Content -Path $logFile -Value "[$timestamp] ERROR: Script not running as Administrator"
-    echo     exit 1
-    echo }
-    echo.
-    echo try {
-    echo     # Get connection profile
-    echo     $connectionProfile = [Windows.Networking.Connectivity.NetworkInformation, Windows.Networking.Connectivity, ContentType=WindowsRuntime]::GetInternetConnectionProfile(^)
-    echo.
-    echo     if ($null -eq $connectionProfile^) {
-    echo         Add-Content -Path $logFile -Value "[$timestamp] WARNING: No active internet connection profile found"
-    echo         exit 0
-    echo     }
-    echo.
-    echo     # Get tethering manager
-    echo     $tetheringManager = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager, Windows.Networking.NetworkOperators, ContentType=WindowsRuntime]::CreateFromConnectionProfile($connectionProfile^)
-    echo.
-    echo     # Check and start hotspot if needed
-    echo     if ($tetheringManager.TetheringOperationalState -ne 'On'^) {
-    echo         Add-Content -Path $logFile -Value "[$timestamp] INFO: Hotspot is OFF - Attempting to activate..."
-    echo         $result = $tetheringManager.StartTetheringAsync(^)
-    echo         $result.GetResults(^) ^| Out-Null
-    echo         Add-Content -Path $logFile -Value "[$timestamp] SUCCESS: Hotspot activated successfully"
-    echo     } else {
-    echo         Add-Content -Path $logFile -Value "[$timestamp] INFO: Hotspot already ON - No action needed"
-    echo     }
-    echo }
-    echo catch {
-    echo     Add-Content -Path $logFile -Value "[$timestamp] ERROR: $($_.Exception.Message^)"
-    echo     exit 1
-    echo }
-) > "%psScriptPath%"
+
+REM Gunakan PowerShell untuk membuat file PS1 (hindari masalah escaping)
+powershell -Command "$content = @'
+# Auto Hotspot Script v1.1 with Logging
+$logFile = '%logPath%'
+$timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+
+# Ensure we have admin rights
+if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]'Administrator')) {
+    Add-Content -Path $logFile -Value "[$timestamp] ERROR: Script not running as Administrator"
+    exit 1
+}
+
+try {
+    # Get connection profile
+    $connectionProfile = [Windows.Networking.Connectivity.NetworkInformation, Windows.Networking.Connectivity, ContentType=WindowsRuntime]::GetInternetConnectionProfile()
+
+    if ($null -eq $connectionProfile) {
+        Add-Content -Path $logFile -Value "[$timestamp] WARNING: No active internet connection profile found"
+        exit 0
+    }
+
+    # Get tethering manager
+    $tetheringManager = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager, Windows.Networking.NetworkOperators, ContentType=WindowsRuntime]::CreateFromConnectionProfile($connectionProfile)
+
+    # Check and start hotspot if needed
+    if ($tetheringManager.TetheringOperationalState -ne 'On') {
+        Add-Content -Path $logFile -Value "[$timestamp] INFO: Hotspot is OFF - Attempting to activate..."
+        $result = $tetheringManager.StartTetheringAsync()
+        $result.GetResults() | Out-Null
+        Add-Content -Path $logFile -Value "[$timestamp] SUCCESS: Hotspot activated successfully"
+    } else {
+        Add-Content -Path $logFile -Value "[$timestamp] INFO: Hotspot already ON - No action needed"
+    }
+}
+catch {
+    Add-Content -Path $logFile -Value "[$timestamp] ERROR: $($_.Exception.Message)"
+    exit 1
+}
+'@; Set-Content -Path '%psScriptPath%' -Value $content -Encoding UTF8"
 
 REM =================================================================
 REM Bagian 4: Pembuatan Tugas di Task Scheduler
@@ -127,7 +129,7 @@ if %errorlevel% equ 0 (
     echo =================================================================
     echo.
     
-    REM Jalankan script PowerShell LANGSUNG (bukan lewat task scheduler)
+    REM Jalankan script PowerShell LANGSUNG
     echo Menjalankan script aktivasi...
     powershell.exe -ExecutionPolicy Bypass -File "%psScriptPath%"
     
@@ -138,7 +140,17 @@ if %errorlevel% equ 0 (
     echo.
     echo Memverifikasi status hotspot...
     echo.
-    call Check-Status.bat
+    
+    REM Cek apakah Check-Status.bat ada di folder yang sama
+    if exist "%~dp0Check-Status.bat" (
+        call "%~dp0Check-Status.bat"
+    ) else (
+        echo [INFO] Check-Status.bat tidak ditemukan di folder ini.
+        echo Anda bisa download dari repository untuk cek status lengkap.
+        echo.
+        echo Menggunakan verifikasi sederhana...
+        powershell -Command "try { $cp = [Windows.Networking.Connectivity.NetworkInformation]::GetInternetConnectionProfile(); if ($cp) { $tm = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager]::CreateFromConnectionProfile($cp); if ($tm.TetheringOperationalState -eq 'On') { Write-Host 'Hotspot AKTIF!' -ForegroundColor Green } else { Write-Host 'Hotspot TIDAK AKTIF' -ForegroundColor Yellow } } else { Write-Host 'Tidak ada koneksi internet' -ForegroundColor Yellow } } catch { Write-Host 'Error: $_' -ForegroundColor Red }"
+    )
     
     echo.
     echo =================================================================
@@ -148,10 +160,13 @@ if %errorlevel% equ 0 (
     echo  - Interval pengecekan: %minutes% menit
     echo  - Log aktivitas: %logPath%
     echo.
-    echo  File utilitas tambahan tersedia:
+    echo  File utilitas tambahan tersedia di repository:
     echo  - View-Logs.bat      : Lihat log aktivitas hotspot
     echo  - Check-Status.bat   : Cek status hotspot saat ini
     echo  - Uninstall.bat      : Hapus utilitas ini
+    echo.
+    echo  Download semua file dari:
+    echo  https://github.com/adeism/auto-start-windows-mobile-hotspot
     echo.
     echo  Selanjutnya, status hotspot akan diperiksa secara otomatis
     echo  setiap %minutes% menit.
