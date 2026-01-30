@@ -105,29 +105,6 @@ echo Membuat file skrip PowerShell dengan logging di "%psScriptPath%"...
 ) > "%psScriptPath%"
 
 REM =================================================================
-REM Bagian 3.1: Membuat Script Verifikasi Terpisah
-REM =================================================================
-set "verifyScriptPath=%utilityPath%\Verify-Hotspot.ps1"
-(
-    echo # Simple verification script
-    echo try {
-    echo     $cp = [Windows.Networking.Connectivity.NetworkInformation, Windows.Networking.Connectivity, ContentType=WindowsRuntime]::GetInternetConnectionProfile(^)
-    echo     if ($null -eq $cp^) {
-    echo         Write-Host "WARNING: Tidak ada koneksi internet aktif" -ForegroundColor Yellow
-    echo         exit 0
-    echo     }
-    echo     $tm = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager, Windows.Networking.NetworkOperators, ContentType=WindowsRuntime]::CreateFromConnectionProfile($cp^)
-    echo     if ($tm.TetheringOperationalState -eq 'On'^) {
-    echo         Write-Host "Hotspot AKTIF!" -ForegroundColor Green
-    echo     } else {
-    echo         Write-Host "Hotspot TIDAK AKTIF. Coba jalankan Check-Status.bat atau lihat log." -ForegroundColor Yellow
-    echo     }
-    echo } catch {
-    echo     Write-Host "ERROR: $_" -ForegroundColor Red
-    echo }
-) > "%verifyScriptPath%"
-
-REM =================================================================
 REM Bagian 4: Pembuatan Tugas di Task Scheduler
 REM =================================================================
 echo Menghapus tugas lama (jika ada^) untuk memastikan instalasi bersih...
@@ -150,16 +127,18 @@ if %errorlevel% equ 0 (
     echo =================================================================
     echo.
     
-    REM Jalankan task scheduler
-    schtasks /run /TN "%taskName%"
+    REM Jalankan script PowerShell LANGSUNG (bukan lewat task scheduler)
+    echo Menjalankan script aktivasi...
+    powershell.exe -ExecutionPolicy Bypass -File "%psScriptPath%"
     
-    REM Tunggu beberapa detik untuk PowerShell script selesai
-    echo Menunggu hotspot aktif...
-    timeout /t 5 /nobreak > nul
+    REM Tunggu sebentar
+    timeout /t 2 /nobreak > nul
     
-    REM Verifikasi menggunakan script terpisah yang lebih sederhana
+    REM Verifikasi status dengan Check-Status.bat
+    echo.
     echo Memverifikasi status hotspot...
-    powershell -ExecutionPolicy Bypass -NoProfile -File "%verifyScriptPath%"
+    echo.
+    call Check-Status.bat
     
     echo.
     echo =================================================================
@@ -174,7 +153,6 @@ if %errorlevel% equ 0 (
     echo  - Check-Status.bat   : Cek status hotspot saat ini
     echo  - Uninstall.bat      : Hapus utilitas ini
     echo.
-    echo  Tips: Jalankan Check-Status.bat untuk melihat status lengkap
     echo  Selanjutnya, status hotspot akan diperiksa secara otomatis
     echo  setiap %minutes% menit.
     echo =================================================================
