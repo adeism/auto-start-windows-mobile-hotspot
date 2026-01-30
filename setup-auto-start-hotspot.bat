@@ -121,15 +121,28 @@ schtasks /create ^
     /F
 
 if %errorlevel% equ 0 (
-    echo Menjalankan tugas untuk pertama kali agar hotspot langsung aktif...
-    schtasks /run /TN "%taskName%" > nul
-    timeout /t 2 > nul
+    echo.
+    echo =================================================================
+    echo Mengaktifkan hotspot untuk pertama kali...
+    echo =================================================================
+    echo.
+    
+    REM Jalankan task scheduler
+    schtasks /run /TN "%taskName%"
+    
+    REM Tunggu beberapa detik untuk PowerShell script selesai
+    echo Menunggu hotspot aktif...
+    timeout /t 5 /nobreak > nul
+    
+    REM Verifikasi apakah hotspot berhasil aktif
+    echo Memverifikasi status hotspot...
+    powershell -ExecutionPolicy Bypass -Command "try { $cp = [Windows.Networking.Connectivity.NetworkInformation]::GetInternetConnectionProfile(); $tm = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager]::CreateFromConnectionProfile($cp); if ($tm.TetheringOperationalState -eq 'On') { Write-Host 'Hotspot AKTIF!' -ForegroundColor Green } else { Write-Host 'Hotspot belum aktif. Coba jalankan lagi atau lihat log.' -ForegroundColor Yellow } } catch { Write-Host 'Tidak dapat mengecek status hotspot.' -ForegroundColor Red }"
+    
     echo.
     echo =================================================================
     echo  SETUP BERHASIL!
     echo.
     echo  - Tugas "%taskName%" telah dibuat di Task Scheduler
-    echo  - Hotspot Anda sekarang sudah aktif
     echo  - Interval pengecekan: %minutes% menit
     echo  - Log aktivitas: %logPath%
     echo.
@@ -150,5 +163,6 @@ if %errorlevel% equ 0 (
 )
 
 echo.
-pause
+echo Tekan tombol apapun untuk keluar...
+pause > nul
 endlocal
